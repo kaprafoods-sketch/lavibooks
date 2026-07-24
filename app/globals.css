@@ -46,6 +46,44 @@ body {
 .loss { @apply text-loss; }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   Scroll-reveal — light pages. Elements ease up + fade in as they enter view.
+   Gated by `.reveal-ready` on <html>, which an inline script adds ONLY when JS
+   is running and the user hasn't requested reduced motion — so there's no
+   flash-of-hidden-content and no stuck-hidden state without JS.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.reveal-ready main .card,
+.reveal-ready main h1,
+.reveal-ready main [data-reveal] {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
+}
+.reveal-ready main .card.reveal-in,
+.reveal-ready main h1.reveal-in,
+.reveal-ready main [data-reveal].reveal-in {
+  opacity: 1;
+  transform: none;
+}
+/* The Command Center (dark terminal) drives its own WebGL scroll motion. */
+.reveal-ready [data-terminal] .card,
+.reveal-ready [data-terminal] h1,
+.reveal-ready [data-terminal] [data-reveal] {
+  opacity: 1 !important;
+  transform: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .reveal-ready main .card,
+  .reveal-ready main h1,
+  .reveal-ready main [data-reveal] {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    M8 Command Center — scoped DARK terminal theme.
    Everything under [data-terminal] flips to a Bloomberg-grade dark surface
    WITHOUT touching the light LV brand on the rest of the app. Numbers stay

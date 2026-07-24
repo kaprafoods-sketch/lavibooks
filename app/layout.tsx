@@ -3,6 +3,7 @@ import "./globals.css";
 import { Wordmark } from "@/components/brand";
 import Link from "next/link";
 import { getCurrentRole } from "@/lib/auth";
+import { ScrollReveal } from "@/components/scroll-reveal";
 
 export const metadata: Metadata = {
   title: "Lavi Books — Paper Trading",
@@ -35,7 +36,18 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const nav = navFor(role);
   return (
     <html lang="en">
+      <head>
+        {/* No-flash gate: hide-then-reveal only kicks in when JS runs and the
+            user hasn't asked for reduced motion. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "try{if(!(window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches)){document.documentElement.classList.add('reveal-ready')}}catch(e){}",
+          }}
+        />
+      </head>
       <body className="min-h-screen">
+        <ScrollReveal />
         <header className="sticky top-0 z-10 border-b border-ink-600 bg-white/90 backdrop-blur">
           <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
             <Wordmark />
