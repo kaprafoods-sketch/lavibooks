@@ -1,8 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import { Wordmark } from "@/components/brand";
-import Link from "next/link";
 import { getCurrentRole } from "@/lib/auth";
+import { Sidebar, type NavItem } from "@/components/sidebar";
 
 export const metadata: Metadata = {
   title: "Lavi Books — Paper Trading",
@@ -14,17 +13,17 @@ export const viewport: Viewport = {
 };
 
 const NAV = {
-  dashboard: { href: "/", label: "Dashboard" },
-  command: { href: "/command", label: "Command" },
-  admin: { href: "/admin", label: "Admin" },
-  trade: { href: "/trade", label: "Trade" },
-  orders: { href: "/orders", label: "Orders" },
-  rules: { href: "/rules", label: "Rules" },
-  learning: { href: "/learning", label: "Learning" },
-  backtest: { href: "/backtest", label: "Backtest" },
-};
+  dashboard: { href: "/", label: "Dashboard", icon: "dashboard" },
+  command: { href: "/command", label: "Command", icon: "command" },
+  admin: { href: "/admin", label: "Admin", icon: "admin" },
+  trade: { href: "/trade", label: "Trade", icon: "trade" },
+  orders: { href: "/orders", label: "Orders", icon: "orders" },
+  rules: { href: "/rules", label: "Rules", icon: "rules" },
+  learning: { href: "/learning", label: "Learning", icon: "learning" },
+  backtest: { href: "/backtest", label: "Backtest", icon: "backtest" },
+} satisfies Record<string, NavItem>;
 
-function navFor(role: string | null) {
+function navFor(role: string | null): NavItem[] {
   if (role === "admin") return [NAV.dashboard, NAV.command, NAV.admin, NAV.trade, NAV.orders, NAV.rules, NAV.learning, NAV.backtest];
   if (role === "investor") return [NAV.command, NAV.dashboard]; // their money + dashboards only
   return [NAV.dashboard, NAV.command, NAV.trade, NAV.orders, NAV.rules, NAV.learning, NAV.backtest];
@@ -36,35 +35,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html lang="en">
       <body className="min-h-screen">
-        <header className="sticky top-0 z-10 border-b border-ink-600 bg-white/90 backdrop-blur">
-          <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-            <Wordmark />
-            <nav className="hidden gap-1 sm:flex">
-              {nav.map((n) => (
-                <Link
-                  key={n.href}
-                  href={n.href}
-                  className="rounded-md px-3 py-1.5 text-sm text-neutral-400 hover:bg-ink-700 hover:text-neutral-100"
-                >
-                  {n.label}
-                </Link>
-              ))}
-            </nav>
+        <div className="flex min-h-screen">
+          <Sidebar nav={nav} />
+          <div className="flex min-w-0 flex-1 flex-col">
+            <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-6">{children}</main>
+            <footer className="mx-auto w-full max-w-5xl px-4 py-8 text-xs text-neutral-600">
+              Lavi Books · paper trading · virtual money only. Quotes may be delayed —
+              see the “Delayed” tags. Not investment advice.
+            </footer>
           </div>
-          {/* Mobile-first bottom-safe nav */}
-          <nav className="flex justify-around border-t border-ink-600 sm:hidden">
-            {nav.map((n) => (
-              <Link key={n.href} href={n.href} className="px-2 py-2 text-xs text-neutral-400">
-                {n.label}
-              </Link>
-            ))}
-          </nav>
-        </header>
-        <main className="mx-auto max-w-5xl px-4 py-6">{children}</main>
-        <footer className="mx-auto max-w-5xl px-4 py-8 text-xs text-neutral-600">
-          Lavi Books · paper trading · virtual money only. Quotes may be delayed —
-          see the “Delayed” tags. Not investment advice.
-        </footer>
+        </div>
       </body>
     </html>
   );
