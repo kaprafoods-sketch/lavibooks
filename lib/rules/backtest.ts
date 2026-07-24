@@ -62,7 +62,7 @@ export function backtestRule(
       heldQty: inPosition ? qty : 0,
       tradingDaysHeld: daysHeld,
       history: bars.slice(0, i + 1),
-      strategySignal: strat ? strat.onBar({ index: i, history: bars.slice(0, i + 1), position: inPosition ? qty : 0, cashCents: 0 }, bar) : undefined,
+      strategySignal: strat ? strat.onBar({ index: i, history: bars.slice(0, i + 1), position: inPosition ? qty : 0, cashCents: 0 }) : undefined,
     };
 
     const isExitRule = type === "stop_loss" || type === "take_profit" || type === "time_stop";

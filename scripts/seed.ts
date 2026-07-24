@@ -177,6 +177,32 @@ async function main() {
   }
   await sb.from("snapshots").insert(snaps);
 
+  // 7) Automation: settings + a couple of sample rules (simulate mode) so the
+  //    Rules page is never empty on first run.
+  await sb.from("automation_settings").upsert({
+    portfolio_id: portfolioId, automation_enabled: true,
+    max_daily_loss_cents: 500_000, max_open_positions: 10,
+    max_position_pct: 25, max_automated_orders_per_day: 20,
+  });
+  const heldSymbol = Object.keys(lotsBySymbol).find((s) => (lotsBySymbol[s]?.reduce((a, l) => a + l.qtyOpen, 0) ?? 0) > 0);
+  if (heldSymbol) {
+    const iid = instrumentIds[heldSymbol];
+    const qty = lotsBySymbol[heldSymbol].reduce((a, l) => a + l.qtyOpen, 0);
+    const entry = lotsBySymbol[heldSymbol][0].costCents;
+    await sb.from("rules").insert([
+      {
+        portfolio_id: portfolioId, instrument_id: iid, type: "stop_loss", mode: "simulate",
+        status: "armed", entry_price_cents: entry, hwm_cents: entry, valid_from: new Date().toISOString(),
+        params: { qty, trigger: { mode: "pct_below_entry", pct: 5 } },
+      },
+      {
+        portfolio_id: portfolioId, instrument_id: iid, type: "take_profit", mode: "simulate",
+        status: "armed", entry_price_cents: entry, valid_from: new Date().toISOString(),
+        params: { qty, trigger: { mode: "pct_gain", pct: 15 } },
+      },
+    ]);
+  }
+
   console.log(`✓ Seeded. Login: ${DEMO_EMAIL} / ${DEMO_PASSWORD}`);
   console.log("  (Or use the magic-link login with this email in local Supabase.)");
 }

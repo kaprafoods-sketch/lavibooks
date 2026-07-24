@@ -59,11 +59,45 @@ RLS + Edge Functions) · Recharts · Finnhub (free tier, swappable). Deploy: Ver
    - `refresh-quotes` — every minute during market hours → `price_cache` (TTL).
    - `match-orders` — every minute → fills pending limit/stop + queued market.
    - `eod-snapshot` — once daily after close → equity-curve snapshots.
+   - `evaluate-rules` — every minute (RTH) → automation rules; `?mode=scheduled`
+     at open and ~15 min before close for scheduled rules.
    ```bash
    supabase functions deploy refresh-quotes
    supabase functions deploy match-orders
    supabase functions deploy eod-snapshot
+   supabase functions deploy evaluate-rules
    ```
+
+## Automation (M7) — rules-based trade automation
+Stored, versioned **Rules** that place and exit orders on their own, evaluated by
+the `evaluate-rules` worker. All paper-money, inside `PaperBroker`.
+
+- **Types:** bracket/OCO, stop-loss (absolute / % below entry / trailing),
+  take-profit (absolute / % gain / R-multiple), conditional entry (price cross /
+  SMA signal), scheduled (place-at-open / EOD-flatten), time-stop.
+- **Dry-run first:** every rule defaults to **simulate** mode (logs `rule_events`,
+  emits no orders). Flip to **live** when you trust it. Per-rule backtester over
+  daily bars with a <20-trigger small-sample warning.
+- **Safety rails** (per portfolio, enforced before every automated order): global
+  **kill switch** (one tap), max daily loss (breach disarms for the session), max
+  open positions, max position %, max automated orders/day, buying-power check.
+  Rules **fail closed** — stale price (>15 min), vendor error, or ambiguous state
+  → `blocked` with a reason, never a silent fill.
+- **Idempotency:** each trigger writes a `rule_event` with a UNIQUE
+  `(rule_id, trigger_bar_ts, decision)`; a duplicate cron tick can't double-fire.
+  Per-portfolio advisory locks serialize overlapping runs. The
+  trigger→order→trade→ledger write is one transaction (`fire_rule` RPC).
+- **Fill realism:** a stop is a *trigger*, not a price — a gap-down through a stop
+  fills at the **open** and records `gap_slippage_cents`. Limit orders fill only
+  if price trades through the limit.
+- **Learning tie-in:** automated fills carry `rule_id`; the Learning page compares
+  manual vs automated cohorts and answers *"did my stops save me or shake me
+  out?"* both ways via a daily-bar counterfactual.
+
+> **Resolution caveat:** on the free tier this is **EOD/daily-close precision**
+> with delayed quotes — trailing stops and gap logic are daily-resolution and the
+> UI says so. We do not imply intraday fills. Real 1-minute precision needs an
+> intraday data vendor swapped in behind `MarketDataProvider`.
 
 ## Tests (money paths — mandatory)
 ```bash

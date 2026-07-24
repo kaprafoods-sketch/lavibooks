@@ -1,5 +1,6 @@
 import { getDefaultPortfolio } from "@/lib/auth";
 import { getLearningSummary } from "@/lib/scoring/learning-service";
+import { getAutomationComparison } from "@/lib/rules/analytics";
 import { Money } from "@/components/money";
 
 export const dynamic = "force-dynamic";
@@ -8,10 +9,46 @@ export default async function LearningPage() {
   const { sb, user, portfolio } = await getDefaultPortfolio();
   if (!user || !portfolio) return <p className="text-sm text-neutral-400">Sign in and seed to view learning analytics.</p>;
 
-  const L = await getLearningSummary(sb, portfolio.id);
+  const [L, cmp] = await Promise.all([
+    getLearningSummary(sb, portfolio.id),
+    getAutomationComparison(sb, portfolio.id),
+  ]);
 
   return (
     <div className="space-y-6">
+      {/* Manual vs automated cohort comparison */}
+      <div className="card p-4">
+        <h2 className="mb-3 text-sm font-medium text-neutral-300">Manual vs automated</h2>
+        <div className="grid grid-cols-2 gap-4">
+          {([["Manual", cmp.manual], ["Automated", cmp.automated]] as const).map(([label, c]) => (
+            <div key={label} className="rounded-lg border border-ink-600 p-3">
+              <div className="mb-2 text-xs uppercase tracking-wider text-gold">{label}</div>
+              <dl className="space-y-1 text-sm">
+                <Line k="Round-trips" v={String(c.roundTrips)} />
+                <Line k="Hit rate" v={`${c.hitRatePct.toFixed(0)}%`} />
+                <Line k="Avg P&L" node={<Money cents={c.avgPnlCents} colored showSign />} />
+                <Line k="Avg hold" v={`${c.avgHoldingDays.toFixed(1)}d`} />
+                <Line k="Worst trade" node={<Money cents={c.worstDrawdownCents} colored />} />
+              </dl>
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 rounded-lg border border-ink-600 p-3">
+          <div className="mb-1 text-xs uppercase tracking-wider text-gold">Did my stops help?</div>
+          {cmp.stops.stopFills === 0 ? (
+            <p className="text-sm text-neutral-500">No automated stop-loss fills yet.</p>
+          ) : (
+            <p className="text-sm text-neutral-300">
+              Of <span className="num">{cmp.stops.stopFills}</span> stop fills,{" "}
+              <span className="num gain">{cmp.stops.saved}</span> saved you from further losses and{" "}
+              <span className="num loss">{cmp.stops.shookOut}</span> shook you out of trades that recovered
+              (<span className="num">{cmp.stops.savedPct.toFixed(0)}%</span> helpful).
+            </p>
+          )}
+          <p className="mt-1 text-[10px] text-neutral-600">Counterfactual uses up to 10 trading days of daily closes after each fill.</p>
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Stat label="Overall hit rate">
           {L.overallHitRatePct == null ? <span className="text-neutral-600">—</span> : <span className="num">{L.overallHitRatePct.toFixed(0)}%</span>}
@@ -75,6 +112,14 @@ export default async function LearningPage() {
 
 function Stat({ label, children }: { label: string; children: React.ReactNode }) {
   return <div className="card p-3"><div className="text-xs text-neutral-500">{label}</div><div className="mt-1 text-lg">{children}</div></div>;
+}
+function Line({ k, v, node }: { k: string; v?: string; node?: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between">
+      <dt className="text-neutral-500">{k}</dt>
+      <dd className="num">{node ?? v}</dd>
+    </div>
+  );
 }
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return <div className="card p-4"><h3 className="mb-3 text-sm font-medium text-neutral-300">{title}</h3><div className="space-y-2">{children}</div></div>;
