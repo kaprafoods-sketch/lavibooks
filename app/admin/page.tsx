@@ -69,9 +69,15 @@ export default async function AdminPage() {
           <h1 className="text-lg font-semibold">Admin console</h1>
           <p className="text-xs text-neutral-500">Every investor, every position, plus the market feed. Full visibility.</p>
         </div>
-        <div className="text-right">
-          <div className="text-xs text-neutral-500">Total AUM (paper)</div>
-          <div className="text-lg"><Money cents={totalAum} /></div>
+        <div className="flex items-center gap-4">
+          <div className="hidden gap-3 text-sm sm:flex">
+            <Link href="/admin/invite" className="text-gold hover:text-gold-bright">Invite</Link>
+            <Link href="/admin/audit" className="text-neutral-400 hover:text-neutral-100">Audit</Link>
+          </div>
+          <div className="text-right">
+            <div className="text-xs text-neutral-500">Total AUM (paper)</div>
+            <div className="text-lg"><Money cents={totalAum} /></div>
+          </div>
         </div>
       </div>
 
@@ -101,6 +107,7 @@ export default async function AdminPage() {
                 <td className="px-4 py-2 text-right"><Money cents={i.equity} /></td>
                 <td className="px-4 py-2 text-right">
                   <span className="inline-flex gap-3">
+                    <Link href={`/admin/investors/${i.id}`} className="text-neutral-400 hover:text-neutral-100">Detail</Link>
                     <Link href={`/command?portfolio=${i.id}`} className="text-neutral-400 hover:text-neutral-100">Open</Link>
                     <Link href={`/admin/trade/${i.id}`} className="text-gold hover:text-gold-bright">Trade →</Link>
                   </span>
