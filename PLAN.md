@@ -684,3 +684,305 @@ rule keyed on news/sentiment.
 
 **Status: M7 automation design complete. Stopping for review before any build
 (per working agreement §1).**
+
+---
+
+# ADD-ON MILESTONE (M8) — Command Center (Master Portfolio & Market Dashboard)
+
+> ONE dense, keyboard-driven cockpit that tracks every name we hold or watch,
+> across every angle, rendered instantly from Postgres/cache and refreshed in the
+> background. Information density over decoration. This section is the required
+> planning artifact for M8. **No M8 code is built until this is approved.**
+
+## M8.0 Principles that shape every decision below
+
+1. **Cache is the source of truth for render.** Every panel reads from Postgres /
+   `price_cache` and paints on first byte. Quotes never fetched during render —
+   same rule as Phase 1. The `refresh-quotes` cron stays the *only* quote writer.
+2. **One vendor call per unique symbol per refresh, never per row.** The grid,
+   the sparklines, the deep-dive quote strip and the watchlist all read the same
+   `price_cache` row for a symbol. Union of held + watched symbols = the refresh
+   set.
+3. **Never imply live data we don't have.** Finnhub free tier is delayed /
+   last-close. Every surface carries an `as of HH:MM:SS` stamp sourced from
+   `price_cache.fetched_at`, and a `DELAYED` tag. Stale rows (older than TTL) go
+   greyed with their real timestamp — never blanked, never faked.
+4. **Every number traceable.** Each figure resolves to a stored row or a pure
+   function over stored rows (`portfolio-service`, `engine/*`, `scoring/*`,
+   `rules/analytics`). No panel invents a value the data layer can't back.
+5. **Paper money, stated as such.** Benchmark/alpha panels label the book a
+   **simulation**, not advice — reuses the footer disclaimer language.
+6. **Additive only.** M8 reuses existing tables and services. New tables are
+   thin (dashboard prefs, watchlist thesis, a benchmark instrument, a fundamentals
+   cache). No change to the money paths, the ledger, or the fill engine.
+
+## M8.0a OPEN DECISION — theme (needs your call before build)
+
+The brief specifies a **dark Bloomberg terminal**. The app was just rebranded to
+a **light LV luxe** identity (commit `557f1ae`; `ink-900 = #FFFFFF`, black pill
+CTAs, light tailwind scale). These conflict. Options:
+
+| Option | What it means | Cost |
+|---|---|---|
+| **A. Scoped dark cockpit (recommended)** | Command Center lives under `/command` in a self-contained dark theme (a `data-terminal` root + a dark token overlay in `globals.css`); the rest of the app stays light LV. | Localized; one CSS scope, no rebrand churn. |
+| **B. Flip the whole app dark** | Re-dark the tailwind `ink`/`neutral` scales globally; undoes the LV luxe rebrand. | High; touches every page, contradicts latest commit. |
+| **C. Light "terminal"** | Keep LV light, apply terminal *density* (tight grids, mono numerals) without going dark. | Low; but not the Bloomberg look asked for. |
+
+**I recommend A** — it honors both the brief ("dark, terminal-grade") and the
+just-shipped brand, and keeps the blast radius to one route. The tables below
+assume A. **Flag if you want B or C.**
+
+## M8.1 Component tree
+
+```
+app/command/page.tsx                 Server component. Fetches the whole cockpit
+│                                    snapshot (below) in parallel, passes to a
+│                                    client shell. force-dynamic.
+└─ <CommandCenter> (client shell)    Holds selected ticker, sort/filter, refresh
+   │                                 interval, theme scope (data-terminal).
+   ├─ <CommandPalette>               Cmd/Ctrl-K. Fuzzy over held+watched symbols
+   │                                 + actions ("open sector view", "export csv",
+   │                                 "arm bracket"). Keyboard nav, no vendor call.
+   ├─ ZONE A  <PortfolioCommandBar>  Equity, day P&L (abs+%), unrealized, realized,
+   │   ├─ <EquitySparkline>          cash/buying-power, exposure %, best/worst today,
+   │   ├─ <RangeToggle>              armed-rule count + <KillSwitch> (reused).
+   │   └─ <AsOfStamp>                1D/1W/1M/3M/YTD/ALL toggle over snapshots.
+   ├─ ZONE B  <HoldingsGrid>         One row/position. Sortable/filterable columns
+   │   ├─ <HoldingRow>               per brief. <RowSparkline> from daily_bars.
+   │   │   ├─ <RowSparkline>         Rule chips (stop/target) from rules table.
+   │   │   ├─ <RuleChips>            Thesis status (target vs current, horizon left)
+   │   │   └─ <ThesisStatusPill>     from theses + price_cache.
+   │   └─ <ExportCsvButton>          Serializes the *current* (sorted/filtered) view.
+   ├─ ZONE C  <CompanyDeepDive>      Tabs for the selected ticker:
+   │   ├─ <TabChart>                 lightweight-charts candles from daily_bars;
+   │   │                             overlay entry/exit (trades), stop/target
+   │   │                             (rules), SMA overlays; volume subpanel.
+   │   ├─ <TabFundamentals>          fundamentals_cache; missing fields labeled.
+   │   ├─ <TabMyHistory>             trades in this name + realized P&L + recorded
+   │   │                             thesis + played-out flag (scoring/thesis).
+   │   ├─ <TabNews>                  news_cache headlines + next earnings date,
+   │   │                             attributed + timestamped.
+   │   └─ <TabAutomation>            rules + rule_events log + quick "add bracket"
+   │                                 (reuses <RuleBuilder>/actions/rules).
+   └─ ANALYTICS  <CrossPortfolio>    Institutional layer (collapsible rail / tabs):
+       ├─ <AllocationView>           Donut+table by sector / size / conviction tag;
+       │                             concentration flag > configurable %.
+       ├─ <RiskPanel>                Portfolio beta, max drawdown, exposure, cash %,
+       │                             correlation heads-up on two large co-movers.
+       ├─ <Attribution>             Winners vs losers contribution to period P&L,
+       │                             by position / sector / tag.
+       └─ <BenchmarkPanel>           Equity curve vs SPY over the window; honest
+                                     alpha, "SIMULATION — not advice" label.
+```
+
+Reused as-is: `<Money>`/`<Pct>`, `<KillSwitch>`, `<RuleBuilder>`/`<RuleControls>`,
+`<EquityCurve>` (Recharts), `lightweight-charts`, `getPortfolioView()`,
+`rules/analytics`, `scoring/thesis`, `calendar/nyse`.
+
+## M8.2 Data each panel needs and its source
+
+Source key: **CACHE** = existing Postgres table (instant render) · **DERIVED** =
+pure function over stored rows · **FETCH(cron)** = populated by a background Edge
+function into a cache table, never at render · **NEW** = new thin table (§M8.4).
+
+| Panel | Field(s) | Source |
+|---|---|---|
+| Command Bar | equity, cash, unrealized P&L, positions value | DERIVED `getPortfolioView` (ledger + lots + `price_cache`) |
+| Command Bar | realized P&L to date | DERIVED FIFO close-out over `trades`/`lots` (extend service) |
+| Command Bar | day P&L (abs+%) | DERIVED Σ qty·(last − prev_close) from `price_cache` |
+| Command Bar | buying power, exposure % | DERIVED cash vs positions value |
+| Command Bar | equity sparkline + range | CACHE `snapshots` (EOD); range filters the series |
+| Command Bar | best/worst today | DERIVED max/min day-change across positions |
+| Command Bar | armed rules count, kill switch | CACHE `rules.status='armed'`, `automation_settings` |
+| Command Bar | as-of stamp | CACHE `min(price_cache.fetched_at)` over held symbols |
+| Holdings Grid | ticker, company, sector | CACHE `instruments` + `fundamentals_cache.sector` |
+| Holdings Grid | qty, avg cost, last, mkt value, weight, unrl P&L | DERIVED `getPortfolioView` (+ weight = mv / Σmv) |
+| Holdings Grid | day change % | DERIVED `price_cache` last vs prev_close |
+| Holdings Grid | realized P&L to date, holding period | DERIVED `trades`/`lots` (earliest open lot) |
+| Holdings Grid | row sparkline | CACHE `daily_bars` (last ~30 closes) |
+| Holdings Grid | stop/target chips | CACHE `rules` (type stop_loss/take_profit/bracket_oco) |
+| Holdings Grid | thesis status | DERIVED `theses` target vs `price_cache` last; horizon left = horizon_days − holding days |
+| Deep-Dive Chart | OHLC candles + volume | CACHE `daily_bars` (FETCH backfill if sparse) |
+| Deep-Dive Chart | entry/exit markers | CACHE `trades` for (portfolio, instrument) |
+| Deep-Dive Chart | stop/target lines | CACHE `rules.params` price levels |
+| Deep-Dive Chart | SMA overlays | DERIVED rolling mean over `daily_bars` |
+| Fundamentals | mcap, P/E, EPS, revenue, margins, 52wk hi/lo, beta, div yield | FETCH(cron) `fundamentals_cache` (Finnhub `/stock/metric`, `/stock/profile2`) — **see §M8.3 for what's actually free** |
+| My History | trades, realized P&L, thesis text, played-out | CACHE `trades` + `theses` → DERIVED `scoring/thesis` |
+| News & events | headlines (source, ts), next earnings date | FETCH(cron) `news_cache`, `earnings_cache` |
+| Automation | rules, event log, add bracket | CACHE `rules`/`rule_events` + `actions/rules` |
+| Allocation | by sector / size / conviction | DERIVED positions × `fundamentals_cache.sector` / weight / `theses.tags` |
+| Risk | beta, max drawdown, exposure, cash %, correlation | DERIVED `fundamentals_cache.beta` (weighted), `snapshots` drawdown, `daily_bars` return correlation |
+| Attribution | winners/losers contribution by pos/sector/tag | DERIVED per-position ΔP&L over window vs equity change |
+| Benchmark | SPY curve, alpha | CACHE SPY `daily_bars` (SPY as an instrument) vs `snapshots` |
+| Watchlist board | symbols, quote strip, entry thesis / trigger | CACHE `watchlists` + `price_cache` + NEW `watchlist_theses` |
+
+## M8.3 Free-tier reality — what Finnhub actually gives us vs. what we stub
+
+Honesty constraint. Each fundamental/news field is labeled `LIVE` (free tier
+serves it), `SPARSE` (works but frequently null / rate-limited), or `STUB`
+(premium — we show a labeled placeholder, never a fake number).
+
+| Field / feed | Finnhub free endpoint | Status |
+|---|---|---|
+| Company profile: name, exchange, **sector** (`finnhubIndustry`), market cap, shares out | `/stock/profile2` | **LIVE** |
+| Delayed quote: last, prev close | `/quote` (already wired) | **LIVE** (delayed) |
+| Basic financials: P/E, EPS, 52-wk hi/lo, **beta**, margins, dividend yield | `/stock/metric?metric=all` | **SPARSE** — many present; some null per name → label missing |
+| Revenue / income statement lines | `/stock/financials-reported` | **SPARSE** — free but heavy; cache aggressively, label gaps |
+| Company news headlines | `/company-news?from&to` | **LIVE** — attribute source + `datetime`, timestamped |
+| Earnings calendar (next date) | `/calendar/earnings` | **SPARSE→STUB** — often premium-gated; if empty, label "not available on current data tier", never guess |
+| **Daily OHLC candles** | `/stock/candle` | **STUB on free tier** — commonly 403. Chart reads seeded/backfilled `daily_bars`; the vendor path is a documented fallback only (already noted in `finnhub.ts`). |
+| Analyst price targets | — | **OUT OF SCOPE** (paywalled per brief) |
+
+Rule: a `STUB`/missing field renders a dimmed "—" with a tooltip stating why
+(premium tier / not provided), matching the existing `DELAYED` honesty pattern.
+No panel blanks; no panel fabricates.
+
+## M8.4 New schema (thin, additive)
+
+```sql
+-- Per-symbol fundamentals snapshot. Sole writer = refresh-fundamentals cron.
+-- Long TTL (fundamentals change slowly) → tiny call volume.
+create table fundamentals_cache (
+  instrument_id  uuid primary key references instruments(id) on delete cascade,
+  sector         text,
+  market_cap_cents bigint,
+  pe             numeric, eps_cents bigint,
+  beta           numeric, dividend_yield numeric,
+  high_52w_cents bigint, low_52w_cents bigint,
+  net_margin     numeric, gross_margin numeric,
+  raw            jsonb,             -- full vendor payload for traceability
+  fetched_at     timestamptz not null default now(),
+  source         text not null default 'finnhub',
+  is_partial     boolean not null default true  -- free tier: fields may be null
+);
+
+-- Recent headlines. Writer = refresh-news cron. Deduped on (instrument, url).
+create table news_cache (
+  id uuid primary key default gen_random_uuid(),
+  instrument_id uuid not null references instruments(id) on delete cascade,
+  headline text not null, url text, source text,
+  published_at timestamptz not null,
+  fetched_at timestamptz not null default now(),
+  unique (instrument_id, url)
+);
+
+-- Next known earnings date per symbol (nullable when tier doesn't expose it).
+create table earnings_cache (
+  instrument_id uuid primary key references instruments(id) on delete cascade,
+  next_earnings_date date,
+  fetched_at timestamptz not null default now(),
+  available boolean not null default false  -- false = tier didn't provide it
+);
+
+-- Pre-recorded thesis/trigger for names watched but not held.
+create table watchlist_theses (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid not null references profiles(id) on delete cascade,
+  instrument_id uuid not null references instruments(id) on delete cascade,
+  trigger_price_cents bigint, direction text check (direction in ('above','below')),
+  thesis text, conviction int check (conviction between 1 and 5),
+  tags text[] default '{}',
+  created_at timestamptz not null default now(),
+  unique (owner_id, instrument_id)
+);
+
+-- Per-user cockpit prefs (default range, refresh interval, concentration %,
+-- column order, last selected ticker). One row per user.
+create table dashboard_prefs (
+  owner_id uuid primary key references profiles(id) on delete cascade,
+  default_range text not null default '1M',
+  refresh_seconds int not null default 60,
+  concentration_pct numeric not null default 20.0,
+  updated_at timestamptz not null default now()
+);
+```
+
+RLS: `fundamentals_cache` / `news_cache` / `earnings_cache` are keyed by
+`instrument_id` (shared reference data) → readable to any authed user, writable
+only by service-role crons. `watchlist_theses` / `dashboard_prefs` are
+owner-gated exactly like `watchlists` (reuse the `owner_id = auth.uid()` policy).
+SPY is inserted as an ordinary `instruments` row so its `daily_bars` benchmark
+history flows through the same path.
+
+## M8.5 Refresh strategy
+
+- **Quotes:** unchanged `refresh-quotes` cron. M8 only *widens the symbol set* to
+  `distinct(held ∪ watched ∪ SPY)`; still one call per unique symbol, TTL-gated,
+  ≤50/tick to respect ~60 req/min. Pages read `price_cache`.
+- **Fundamentals:** new `refresh-fundamentals` Edge cron, **daily** (long TTL) —
+  a handful of calls/day; walks stale `fundamentals_cache` rows, ≤N/tick.
+- **News/earnings:** new `refresh-news` Edge cron, ~every 15–30 min, small batch,
+  dedup on url; earnings written with `available=false` when the tier is silent.
+- **Client refresh:** the cockpit shell polls a lightweight server action on the
+  user's `refresh_seconds` interval (default 60s), which re-reads cache tables and
+  returns a fresh snapshot — no vendor call on that path. Manual "refresh now"
+  button + visible `as of HH:MM:SS`. Polling (not WebSocket) v1: the data is
+  delayed anyway, so sub-minute push buys nothing and costs a socket. Documented.
+- **Degrade:** if `fetched_at` older than TTL → render last-known value greyed
+  with its real timestamp. Vendor error is invisible to the page (cron owns it);
+  the page only ever sees cache freshness.
+
+## M8.6 Route map additions
+
+```
+GET  /command                         The cockpit (server-rendered snapshot).
+     app/actions/command.ts           refreshSnapshot(range, filter) — cache-only
+                                       re-read for polling + manual refresh.
+     app/actions/command.ts           exportCsv(view) — current sorted/filtered grid.
+     app/actions/watchlist.ts         upsert/remove watchlist_theses.
+     app/actions/prefs.ts             save dashboard_prefs.
+supabase/functions/refresh-fundamentals/index.ts   daily cron
+supabase/functions/refresh-news/index.ts           15–30 min cron
+```
+A "Command" link joins the header nav (light) and the mobile bottom nav.
+
+## M8.7 Responsive / mobile
+
+Reuses the mobile-first patterns already in `layout.tsx` (bottom-safe nav, card
+stacks). The dense desktop grid collapses to a **card stack**: each holding
+becomes a card (ticker + day% badge + sparkline + P&L), Zone C opens full-screen
+on tap, analytics rail becomes stacked accordion sections. Command palette stays
+available via a floating button on touch.
+
+## M8.8 Tests (mandatory paths)
+
+Pure, deterministic units (no network) — same discipline as `engine/*`:
+- `portfolio-service` extensions: realized-P&L to date, day-P&L, weight,
+  best/worst — fixed fixtures.
+- Allocation grouping (sector/size/tag) sums to 100%; concentration flag fires at
+  the boundary.
+- Risk: weighted beta, max drawdown over a snapshot series, return-correlation on
+  two bar series.
+- Attribution: per-position contributions sum to the period equity delta.
+- CSV export: row/column parity with the on-screen sorted/filtered view.
+- Staleness: a row past TTL is marked stale (greyed), never dropped.
+- Thesis status: horizon-remaining and target-vs-current from `scoring/thesis`.
+
+## M8.9 Risks / honest gaps
+
+1. **Free-tier fundamentals are patchy.** P/E, beta, margins are `SPARSE`; we
+   cache + label missing, never interpolate. Beta-derived portfolio beta inherits
+   that sparseness — shown with an "n of m names have beta" note.
+2. **Daily candles are effectively premium** (`/stock/candle` 403s). Charts rely
+   on seeded/backfilled `daily_bars`; intraday candles are not available and not
+   implied.
+3. **Earnings dates** frequently unavailable on free tier → labeled, not guessed.
+4. **Correlation / drawdown** need history depth; with thin `daily_bars`/
+   `snapshots` these read "insufficient history" rather than a noisy number.
+5. **"Real-time-ish"** is delayed-quote polling; the UI says so everywhere. No
+   WebSocket, no live feed, no fabricated ticks.
+6. **Theme decision (§M8.0a)** must be resolved before build — it changes the CSS
+   approach materially.
+
+## M8.10 Out of scope (per spec)
+
+Real brokerage data, level-2 / order book, options chains, paid real-time feeds,
+paywalled analyst targets, and anything implying real investment advice. Alpha
+and benchmark panels are explicitly labeled simulation.
+
+---
+
+**Status: M8 Command Center design complete. One decision needs your call before
+any build — the theme question in §M8.0a (recommend Option A: a scoped dark
+cockpit at `/command`, leaving the light LV brand intact). Stopping for review
+per the working agreement.**
