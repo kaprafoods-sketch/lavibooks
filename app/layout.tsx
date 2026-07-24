@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Wordmark } from "@/components/brand";
 import Link from "next/link";
@@ -6,6 +6,9 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Lavi Books — Paper Trading",
   description: "Vested-style paper trading for US equities, with a learning layer.",
+};
+
+export const viewport: Viewport = {
   themeColor: "#FFFFFF",
 };
 
