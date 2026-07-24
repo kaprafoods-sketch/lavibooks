@@ -982,7 +982,39 @@ and benchmark panels are explicitly labeled simulation.
 
 ---
 
-**Status: M8 Command Center design complete. One decision needs your call before
-any build — the theme question in §M8.0a (recommend Option A: a scoped dark
-cockpit at `/command`, leaving the light LV brand intact). Stopping for review
-per the working agreement.**
+## M8.11 Build log (approved & shipped)
+
+Theme decision resolved: **Option A** — a scoped dark cockpit at `/command`
+(`[data-terminal]` overlay in `globals.css`), light LV brand untouched elsewhere.
+
+Added at the user's request, beyond the original spec:
+- **GetLayers "Flow Wave" 3D scene** as the cockpit backdrop — a faithful,
+  spec-verbatim port (geometry, Simplex-noise shaders, three-composer
+  bloom/final pipeline all copied exactly) in `components/command/flow-wave-bg.tsx`.
+  Only the color slots are retinted (Mode B) to the terminal green
+  (`#04110b`/`#34e89a`/`#0f9d58`), so it reads as a trading cockpit rather than
+  the original emerald. Full shipping floor: DPR≤2 cap, `prefers-reduced-motion`
+  static frame, WebGL detect → gradient poster, RAF paused on `visibilitychange`.
+  Canvas is `position:fixed; z-index:0; pointer-events:none` behind a scrim, so
+  the dense grid stays fully interactive.
+- **Scroll animation**: the page itself is the scroll host — scrolling from the
+  Zone-A hero down into the holdings grid drives the Flow Wave camera dive
+  (high angled view → skim the surface) and grows the swell. One scene, one
+  page (per the skill's rules of engagement).
+
+Files: `supabase/migrations/0005_command_center.sql` (new caches + prefs, RLS),
+`lib/command-service.ts` (+ pure `realizedPnlByInstrument`, tested),
+`app/command/page.tsx`, `components/command/*` (shell, palette, grid, deep-dive,
+candle chart, sparkline, flow-wave bg), nav link, and the
+`refresh-fundamentals` / `refresh-news` Edge crons. `three@0.143.0` added.
+`pnpm typecheck`, `pnpm build`, and `pnpm test` (71 passing) all green.
+
+Known follow-ups (documented, not hidden): fundamentals/news/earnings render
+honest "cron not yet run / premium-gated" states until those crons are deployed
+and scheduled; portfolio beta and SPY-benchmark plotting need cached
+fundamentals and a seeded SPY instrument respectively; background quote polling
+(configurable `refresh_seconds`) is specced but the v1 page renders a fresh
+server snapshot per load with a manual/`⌘K` re-open.
+
+**Status: M8 Command Center BUILT on branch `claude/personal-access-tokens-classic-v7kxti`
+(Option A + Flow Wave scene + scroll-driven camera). Ready for review.**
