@@ -46,16 +46,18 @@ export default async function AdminPage() {
   );
   const totalAum = investors.reduce((a, i) => a + i.equity, 0);
 
-  // Market (Finnhub) overview.
-  const { data: mkt } = await sb
-    .from("instruments")
-    .select("symbol, name, price_cache(last_price_cents, prev_close_cents, fetched_at, is_delayed), fundamentals_cache(sector, pe, beta, market_cap_cents)")
-    .eq("is_active", true)
-    .order("symbol");
-
-  const market = (mkt ?? []).map((m) => {
-    const pc = (m.price_cache as unknown as { last_price_cents: number; prev_close_cents: number | null; is_delayed: boolean }[])?.[0];
-    const f = (m.fundamentals_cache as unknown as { sector: string | null; pe: number | null; beta: number | null; market_cap_cents: number | null }[])?.[0];
+  // Market (Finnhub) overview — query the tables directly (PostgREST embeds are
+  // finicky here) and join in JS, exactly like the portfolio read path does.
+  const [{ data: insts }, { data: prices }, { data: funds }] = await Promise.all([
+    sb.from("instruments").select("id, symbol, name").eq("is_active", true).order("symbol"),
+    sb.from("price_cache").select("instrument_id, last_price_cents, prev_close_cents, is_delayed"),
+    sb.from("fundamentals_cache").select("instrument_id, sector, pe, beta, market_cap_cents"),
+  ]);
+  const priceBy = new Map((prices ?? []).map((p) => [p.instrument_id, p]));
+  const fundBy = new Map((funds ?? []).map((f) => [f.instrument_id, f]));
+  const market = (insts ?? []).map((m) => {
+    const pc = priceBy.get(m.id);
+    const f = fundBy.get(m.id);
     const dayPct = pc?.prev_close_cents ? ((pc.last_price_cents - pc.prev_close_cents) / pc.prev_close_cents) * 100 : null;
     return { symbol: m.symbol as string, name: m.name as string | null, last: pc?.last_price_cents ?? null, dayPct, delayed: pc?.is_delayed ?? true, sector: f?.sector ?? null, pe: f?.pe ?? null, beta: f?.beta ?? null, mcap: f?.market_cap_cents ?? null };
   });
