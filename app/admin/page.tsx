@@ -100,7 +100,10 @@ export default async function AdminPage() {
                 <td className="px-4 py-2 text-right"><Money cents={i.unrl} colored showSign /></td>
                 <td className="px-4 py-2 text-right"><Money cents={i.equity} /></td>
                 <td className="px-4 py-2 text-right">
-                  <Link href={`/command?portfolio=${i.id}`} className="text-gold hover:text-gold-bright">Open →</Link>
+                  <span className="inline-flex gap-3">
+                    <Link href={`/command?portfolio=${i.id}`} className="text-neutral-400 hover:text-neutral-100">Open</Link>
+                    <Link href={`/admin/trade/${i.id}`} className="text-gold hover:text-gold-bright">Trade →</Link>
+                  </span>
                 </td>
               </tr>
             ))}
