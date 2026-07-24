@@ -6,6 +6,7 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Lavi Books — Paper Trading",
   description: "Vested-style paper trading for US equities, with a learning layer.",
+  themeColor: "#FFFFFF",
 };
 
 const nav = [
@@ -21,7 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className="min-h-screen">
-        <header className="sticky top-0 z-10 border-b border-ink-600 bg-ink-900/90 backdrop-blur">
+        <header className="sticky top-0 z-10 border-b border-ink-600 bg-white/90 backdrop-blur">
           <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
             <Wordmark />
             <nav className="hidden gap-1 sm:flex">

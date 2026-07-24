@@ -1,11 +1,14 @@
 import Link from "next/link";
 
-/** LV monogram — Lavi Books. Original luxe-inspired mark (not a real brand's asset). */
+/**
+ * LV monogram — Lavi Books. Original luxe-inspired mark (NOT the real Louis
+ * Vuitton wordmark/asset). Light-theme: black mark on white.
+ */
 export function Monogram({ size = 40 }: { size?: number }) {
   return (
     <span
-      className="inline-flex items-center justify-center rounded-md border border-gold/60 bg-ink-800 font-mono font-bold tracking-tight text-gold"
-      style={{ width: size, height: size, fontSize: size * 0.42 }}
+      className="inline-flex items-center justify-center border border-black bg-white font-heading font-bold tracking-tight text-black"
+      style={{ width: size, height: size, fontSize: size * 0.42, borderRadius: 8 }}
       aria-label="Lavi Books"
     >
       LV
@@ -17,7 +20,7 @@ export function Wordmark() {
   return (
     <Link href="/" className="flex items-center gap-2">
       <Monogram size={32} />
-      <span className="text-sm font-semibold tracking-widest text-neutral-100">
+      <span className="font-heading text-sm font-semibold tracking-[0.2em] text-neutral-100">
         LAVI&nbsp;BOOKS
       </span>
     </Link>

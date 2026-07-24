@@ -3,12 +3,12 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 body {
   @apply bg-ink-900 text-neutral-200 antialiased;
-  font-feature-settings: "tnum" 1, "cv01" 1;
+  font-feature-settings: "tnum" 1;
 }
 
 /* Tabular numerals for every money figure. */
@@ -18,24 +18,28 @@ body {
 }
 
 .card {
-  @apply bg-ink-800 border border-ink-600 rounded-xl;
+  @apply bg-ink-800 border border-ink-600 rounded-lg;
 }
 
+/* Buttons — brand: black pill primary, white pill secondary, 40px radius. */
 .btn {
-  @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium
+  @apply inline-flex items-center justify-center px-5 py-2 text-sm font-medium
          transition-colors disabled:opacity-40 disabled:cursor-not-allowed;
+  border-radius: 40px;
 }
 .btn-gold {
-  @apply btn bg-gold text-ink-900 hover:bg-gold-bright;
+  @apply btn bg-black text-[#F8F8F8] border border-black hover:bg-neutral-100;
 }
 .btn-ghost {
-  @apply btn border border-ink-500 text-neutral-300 hover:bg-ink-700;
+  @apply btn bg-white text-neutral-100 border border-black hover:bg-ink-700;
 }
 
+/* Inputs — transparent fill, mid-grey border, 4px radius. */
 .input {
-  @apply w-full rounded-lg bg-ink-700 border border-ink-500 px-3 py-2 text-sm
-         text-neutral-100 placeholder:text-neutral-500 focus:outline-none
-         focus:ring-1 focus:ring-gold;
+  @apply w-full bg-transparent border border-ink-500 px-3 py-2 text-sm
+         text-neutral-100 placeholder:text-neutral-600 focus:outline-none
+         focus:ring-1 focus:ring-black focus:border-black;
+  border-radius: 4px;
 }
 
 .gain { @apply text-gain; }
