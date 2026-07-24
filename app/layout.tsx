@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Wordmark } from "@/components/brand";
 import Link from "next/link";
+import { getCurrentRole } from "@/lib/auth";
 
 export const metadata: Metadata = {
   title: "Lavi Books — Paper Trading",
@@ -12,17 +13,26 @@ export const viewport: Viewport = {
   themeColor: "#FFFFFF",
 };
 
-const nav = [
-  { href: "/", label: "Dashboard" },
-  { href: "/command", label: "Command" },
-  { href: "/trade", label: "Trade" },
-  { href: "/orders", label: "Orders" },
-  { href: "/rules", label: "Rules" },
-  { href: "/learning", label: "Learning" },
-  { href: "/backtest", label: "Backtest" },
-];
+const NAV = {
+  dashboard: { href: "/", label: "Dashboard" },
+  command: { href: "/command", label: "Command" },
+  admin: { href: "/admin", label: "Admin" },
+  trade: { href: "/trade", label: "Trade" },
+  orders: { href: "/orders", label: "Orders" },
+  rules: { href: "/rules", label: "Rules" },
+  learning: { href: "/learning", label: "Learning" },
+  backtest: { href: "/backtest", label: "Backtest" },
+};
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+function navFor(role: string | null) {
+  if (role === "admin") return [NAV.dashboard, NAV.command, NAV.admin, NAV.trade, NAV.orders, NAV.rules, NAV.learning, NAV.backtest];
+  if (role === "investor") return [NAV.command, NAV.dashboard]; // their money + dashboards only
+  return [NAV.dashboard, NAV.command, NAV.trade, NAV.orders, NAV.rules, NAV.learning, NAV.backtest];
+}
+
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const role = await getCurrentRole();
+  const nav = navFor(role);
   return (
     <html lang="en">
       <body className="min-h-screen">

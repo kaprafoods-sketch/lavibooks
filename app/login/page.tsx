@@ -6,8 +6,8 @@ import { Monogram } from "@/components/brand";
 
 const DEMO_PASSWORD = "lavibooks-demo-123";
 const DEMOS = [
-  { email: "demo@lavibooks.test", label: "Loaded portfolio", sub: "~$117k · 6 positions · rules armed" },
-  { email: "demo2@lavibooks.test", label: "Mixed book", sub: "$100k start · winners + losers" },
+  { email: "admin@lavibooks.test", label: "Admin demo", sub: "See every investor + market feed", to: "/admin" },
+  { email: "demo@lavibooks.test", label: "Investor demo", sub: "~$117k portfolio · your money & dashboards", to: "/command" },
 ];
 
 export default function LoginPage() {
@@ -28,7 +28,7 @@ export default function LoginPage() {
     else setSent(true);
   }
 
-  async function demoLogin(demoEmail: string) {
+  async function demoLogin(demoEmail: string, to: string) {
     setError(null);
     setBusy(demoEmail);
     const sb = createClient();
@@ -38,7 +38,7 @@ export default function LoginPage() {
       setBusy(null);
     } else {
       // Full navigation so middleware picks up the fresh session cookie.
-      window.location.href = "/command";
+      window.location.href = to;
     }
   }
 
@@ -56,7 +56,7 @@ export default function LoginPage() {
         {DEMOS.map((d) => (
           <button
             key={d.email}
-            onClick={() => demoLogin(d.email)}
+            onClick={() => demoLogin(d.email, d.to)}
             disabled={busy !== null}
             className="flex w-full items-center justify-between rounded-lg border border-ink-600 px-3 py-2 text-left hover:bg-ink-700 disabled:opacity-50"
           >

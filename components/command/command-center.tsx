@@ -32,7 +32,7 @@ function rangeCutoff(range: Range): number {
   }
 }
 
-export function CommandCenter({ view, bundles, disclaimer }: { view: CommandView; bundles: Record<string, DeepDiveBundle>; disclaimer: string }) {
+export function CommandCenter({ view, bundles, disclaimer, viewingLabel }: { view: CommandView; bundles: Record<string, DeepDiveBundle>; disclaimer: string; viewingLabel?: string }) {
   const [selected, setSelected] = useState<string | null>(view.holdings[0]?.instrumentId ?? null);
   const [sortKey, setSortKey] = useState<SortKey>("weightPct");
   const [sortDir, setSortDir] = useState<1 | -1>(-1);
@@ -127,6 +127,7 @@ export function CommandCenter({ view, bundles, disclaimer }: { view: CommandView
         <section style={{ minHeight: "78vh", display: "flex", flexDirection: "column", justifyContent: "center", paddingTop: 40 }}>
           <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 18 }}>
             <h1 style={{ fontSize: 15, letterSpacing: ".14em", textTransform: "uppercase", color: "var(--t-dim)", margin: 0 }}>Command Center</h1>
+            {viewingLabel && <span className="t-chip" style={{ color: "var(--t-gain)", borderColor: "var(--t-line-2)" }}>{viewingLabel}</span>}
             <span className="t-chip">as of {asOfLabel}</span>
             {view.anyDelayed && <span className="t-chip">DELAYED QUOTES</span>}
             {view.anyStale && <span className="t-chip t-stale">STALE</span>}
